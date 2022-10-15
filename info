@@ -1,0 +1,70 @@
+mkdir test
+cd test
+$ cat main.tf
+
+module "my_ec2" {
+  source   = "./ec2"
+  region = var.region
+  ami = var.ami
+  name = var.name
+}
+------------------
+$ cat variable.tf
+
+variable "name" {
+type = list(string)
+default = [
+"test1",
+"test2"
+ ]
+description = "The AMIs to use."
+}
+
+variable "region" {
+type = string
+default = "us-east-1"
+description = "The AMIs to use."
+}
+
+variable "ami" {
+type = list(string)
+default = [
+"ami-0d729a60",
+"ami-0d729a60"
+]
+description = "The AMIs to use."
+}
+-------------------------
+mkdir ec2
+
+$ cat ec2/main.tf
+
+provider "aws" {
+region = var.region
+}
+resource "aws_instance" "base" {
+  count = length(var.name)
+  ami = element(var.ami, count.index)
+  instance_type = "t2.micro"
+  tags = {
+    Name = element(var.name, count.index)
+}
+}
+
+resource "aws_eip" "base" {
+vpc = true
+}
+------------------------------
+$ cat ec2/variable.tf
+
+variable "region" {
+type = string
+}
+variable "ami" {
+type = list(string)
+description = "The AMIs to use."
+}
+variable "name" {
+type = list(string)
+description = "The AMIs to use."
+}
