@@ -1,0 +1,124 @@
+
+ubuntu@ip-172-31-28-114:~/infrastructure$ cat main.tf
+
+provider "aws" {
+  region = var.aws_region
+}
+
+module "my_rest_api" {
+  source   = "./myrest"
+
+  rest_api_domain_name = var.rest_api_domain_name
+  rest_api_name = var.rest_api_name
+  rest_api_path = var.rest_api_path
+}
+ubuntu@ip-172-31-28-114:~/infrastructure$ cat variable.tf
+variable "aws_region" {
+  default     = "us-east-1"
+  description = "AWS Region to deploy example API Gateway REST API"
+  type        = string
+}
+
+variable "rest_api_domain_name" {
+  default     = [ "example.com",
+  "test.com" ]
+  description = "Domain name of the API Gateway REST API for self-signed TLS certificate"
+  type        = list(string)
+}
+
+variable "rest_api_name" {
+  default     = "api-gateway-rest-api-openapi-example"
+  description = "Name of the API Gateway REST API (can be used to trigger redeployments)"
+  type        = string
+}
+
+variable "rest_api_path" {
+  default     = ["/path1",
+  "/testpath"]
+  description = "Path to create in the API Gateway REST API (can be used to trigger redeployments)"
+  type        = list(string)
+}
+ubuntu@ip-172-31-28-114:~/infrastructure$ cat
+.terraform/          .terraform.lock.hcl  main.tf              myrest/              terraform.tfstate    variable.tf
+ubuntu@ip-172-31-28-114:~/infrastructure$ cat myrest/main.tf
+resource "aws_api_gateway_rest_api" "example" {
+  count = length(var.rest_api_domain_name)
+  #ami = element(var.rest_api_domain_name, count.index)
+  body = jsonencode({
+    openapi = "3.0.1"
+    info = {
+      title   = var.rest_api_name
+      version = "1.0"
+    }
+    paths = {
+      (element(var.rest_api_path, count.index)) = {
+        get = {
+          x-amazon-apigateway-integration = {
+            httpMethod           = "GET"
+            payloadFormatVersion = "1.0"
+            type                 = "HTTP_PROXY"
+            uri                  = "https://ip-ranges.amazonaws.com/ip-ranges.json"
+          }
+        }
+      }
+    }
+  })
+
+  name = var.rest_api_name
+
+  endpoint_configuration {
+    types = ["REGIONAL"]
+  }
+}
+
+resource "aws_api_gateway_deployment" "example" {
+#  rest_api_id = aws_api_gateway_rest_api.example.id
+count = length(var.rest_api_domain_name)
+rest_api_id = aws_api_gateway_rest_api.example[count.index].id
+
+  triggers = {
+    redeployment = sha1(jsonencode(aws_api_gateway_rest_api.example[count.index].body))
+  }
+
+  lifecycle {
+    create_before_destroy = true
+  }
+}
+ubuntu@ip-172-31-28-114:~/infrastructure$ cat myrest/variable.tf
+variable "rest_api_domain_name" {
+  description = "Domain name of the API Gateway REST API for self-signed TLS certificate"
+  type        = list(string)
+}
+
+variable "rest_api_name" {
+  description = "Name of the API Gateway REST API (can be used to trigger redeployments)"
+  type        = string
+}
+
+variable "rest_api_path" {
+  description = "Path to create in the API Gateway REST API (can be used to trigger redeployments)"
+  type        = list(string)
+}
+
+
+
+
+================================================
+================================================
+ssh -i  Downloads/jenkins1.pem ubuntu@ec2-54-236-99-219.compute-1.amazonaws.com
+
+
+wget -O- https://apt.releases.hashicorp.com/gpg | gpg --dearmor | sudo tee /usr/share/keyrings/hashicorp-archive-keyring.gpg
+echo "deb [signed-by=/usr/share/keyrings/hashicorp-archive-keyring.gpg] https://apt.releases.hashicorp.com $(lsb_release -cs) main" | sudo tee /etc/apt/sources.list.d/hashicorp.list
+sudo apt update && sudo apt install terraform
+sudo apt  install awscli -y
+aws configure
+aws s3 ls
+
+#Access key ID = 
+#Secret access key= 
+
+wget -O- https://apt.releases.hashicorp.com/gpg | gpg --dearmor | sudo tee /usr/share/keyrings/hashicorp-archive-keyring.gpg
+echo "deb [signed-by=/usr/share/keyrings/hashicorp-archive-keyring.gpg] https://apt.releases.hashicorp.com $(lsb_release -cs) main" | sudo tee /etc/apt/sources.list.d/hashicorp.list
+sudo apt update && sudo apt install terraform
+#running with modular
